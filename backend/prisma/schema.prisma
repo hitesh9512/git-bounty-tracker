@@ -1,0 +1,96 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id             String         @id @default(uuid())
+  email          String         @unique
+  passwordHash   String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  githubAccount  GithubAccount?
+  organizations  Organization[]
+  notifications  Notification[]
+}
+
+model GithubAccount {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  encryptedPat String
+  iv           String   // Hex-encoded initialization vector for aes-256-gcm
+  tag          String   // Hex-encoded authentication tag for aes-256-gcm
+  username     String?
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Organization {
+  id        String       @id @default(uuid())
+  name      String       // GitHub organization name (e.g. "facebook")
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repos     Repository[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([name, userId])
+}
+
+model Repository {
+  id             String       @id @default(uuid())
+  githubId       BigInt       @unique
+  name           String
+  fullName       String
+  description    String?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  issues         Issue[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Issue {
+  id           String         @id @default(uuid())
+  githubId     BigInt         @unique
+  number       Int
+  title        String
+  body         String?
+  url          String
+  state        String         // "open" or "closed"
+  bountyAmount Float?         // Parsed bounty value in USD
+  hasBounty    Boolean        @default(false)
+  labels       String[]       // Array of labels
+  repositoryId String
+  repository   Repository     @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  history      IssueHistory[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model IssueHistory {
+  id        String   @id @default(uuid())
+  issueId   String
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  oldAmount Float?
+  newAmount Float?
+  oldState  String?
+  newState  String?
+  changedAt DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
